@@ -7,7 +7,7 @@ import re
 # ---------- 패턴 정의 ----------
 
 # 이메일
-EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z]{2,}")
+EMAIL_PATTERN = re.compile(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z]{2,})+")
 
 # 전화번호 (한국 형식)
 # 휴대폰: 010-xxxx-xxxx, 01x-xxx-xxxx
@@ -40,7 +40,9 @@ JOB_TITLE_KEYWORDS = [
 # 회사명에 자주 포함되는 키워드
 COMPANY_KEYWORDS = [
     # 한국어
-    "주식회사", "(주)", "㈜", "회사", "그룹", "코퍼레이션", "테크", "랩",
+    "주식회사", "(주)", "㈜", "(재)", "재단법인", "(사)", "사단법인",
+    "협회", "재단", "기술원", "연구원", "진흥원", "공사", "공단",
+    "회사", "그룹", "코퍼레이션", "테크", "랩",
     "솔루션", "시스템", "네트워크", "미디어", "엔터", "파트너스",
     # 영어
     "Inc", "Corp", "Ltd", "LLC", "Co.", "Company", "Group",
@@ -119,11 +121,70 @@ def classify_text_block(text: str, all_blocks: list[dict] = None, block_index: i
     return "unknown"
 
 
+def extract_clean_value(text: str, field: str) -> str:
+    """분류된 필드에서 해당 값만 깨끗하게 추출."""
+    if field == "email":
+        match = EMAIL_PATTERN.search(text)
+        return match.group() if match else text
+    if field == "phone_number":
+        match = MOBILE_PATTERN.search(text) or LANDLINE_PATTERN.search(text)
+        return match.group() if match else text
+    if field == "fax_number":
+        match = LANDLINE_PATTERN.search(text) or MOBILE_PATTERN.search(text)
+        return match.group() if match else text
+    return text
+
+
+def _split_multi_number_blocks(text_blocks: list[dict]) -> list[dict]:
+    """
+    하나의 블록에 팩스+전화 등 여러 번호가 합쳐진 경우 분리.
+    예: "Fax 053-289-4021Mobile 010-5140-3662" → 2개 블록으로 분리
+    """
+    expanded = []
+    for block in text_blocks:
+        text = block["text"].strip()
+        landline_matches = list(LANDLINE_PATTERN.finditer(text))
+        mobile_matches = list(MOBILE_PATTERN.finditer(text))
+        all_matches = landline_matches + mobile_matches
+
+        # 번호가 2개 이상이면 분리
+        if len(all_matches) >= 2:
+            # 각 번호 앞의 키워드를 포함해서 분리
+            segments = []
+            match_positions = sorted(
+                [(m.start(), m.end(), m.group()) for m in all_matches],
+                key=lambda x: x[0]
+            )
+            for i, (start, end, number) in enumerate(match_positions):
+                # 번호 앞부분에서 키워드 찾기
+                if i == 0:
+                    prefix = text[:start]
+                else:
+                    prefix = text[match_positions[i-1][1]:start]
+                segment_text = (prefix + number).strip()
+                if segment_text:
+                    segments.append(segment_text)
+
+            for seg in segments:
+                expanded.append({
+                    "text": seg,
+                    "confidence": block.get("confidence", 0.0),
+                    "bbox": block.get("bbox"),
+                    "block_index": block["block_index"],
+                })
+        else:
+            expanded.append(block)
+    return expanded
+
+
 def classify_all_blocks(text_blocks: list[dict]) -> list[dict]:
     """
     전체 텍스트 블록을 순회하며 분류 결과를 추가.
-    2-pass: 먼저 확실한 것부터 분류 → 문맥 참조로 나머지 분류.
+    전처리: 복합 블록 분리 → 2-pass 분류 → 값 추출.
     """
+    # 전처리: 번호가 합쳐진 블록 분리
+    text_blocks = _split_multi_number_blocks(text_blocks)
+
     # 1st pass: 확실한 패턴 (이메일, 휴대폰)
     for block in text_blocks:
         text = block["text"].strip()
@@ -139,15 +200,17 @@ def classify_all_blocks(text_blocks: list[dict]) -> list[dict]:
                 block["text"], all_blocks=text_blocks, block_index=block["block_index"]
             )
 
-    # 결과 정리
+    # 결과 정리 + 값 추출
     results = []
     for block in text_blocks:
+        field = block.pop("_classified")
+        clean_text = extract_clean_value(block["text"], field)
         results.append({
-            "text": block["text"],
+            "text": clean_text,
             "confidence": block.get("confidence", 0.0),
             "bbox": block.get("bbox"),
             "block_index": block["block_index"],
-            "field": block.pop("_classified"),
+            "field": field,
         })
 
     return results

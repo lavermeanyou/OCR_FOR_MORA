@@ -1,0 +1,11 @@
+uploads/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+venv/
+.venv/
+.idea/
+*.iml
+web/target/
+.DS_Store
