@@ -1,0 +1,35 @@
+{
+  "image_file": "card_001.jpg",
+  "fields": {
+    "company_name": {
+      "text": "ABC Corporation",
+      "confidence": 0.97,
+      "bbox": [[50, 30], [300, 30], [300, 70], [50, 70]]
+    },
+    "person_name": {
+      "text": "김민우",
+      "confidence": 0.95,
+      "bbox": [[50, 90], [180, 90], [180, 130], [50, 130]]
+    },
+    "job_title": {
+      "text": "Senior Engineer",
+      "confidence": 0.93,
+      "bbox": [[50, 140], [280, 140], [280, 170], [50, 170]]
+    },
+    "phone_number": {
+      "text": "010-1234-5678",
+      "confidence": 0.98,
+      "bbox": [[50, 200], [260, 200], [260, 230], [50, 230]]
+    },
+    "fax_number": {
+      "text": "02-123-4567",
+      "confidence": 0.96,
+      "bbox": [[50, 240], [230, 240], [230, 270], [50, 270]]
+    },
+    "email": {
+      "text": "minwoo@abc.com",
+      "confidence": 0.99,
+      "bbox": [[50, 280], [300, 280], [300, 310], [50, 310]]
+    }
+  }
+}
