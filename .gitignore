@@ -9,3 +9,8 @@ venv/
 *.iml
 web/target/
 .DS_Store
+.env
+.claude/
+data/vectorstore/
+data/ml_model/*.joblib
+data/users.json

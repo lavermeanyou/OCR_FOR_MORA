@@ -1,0 +1,110 @@
+[
+  {
+    "timestamp": "2026-03-17T00:00:00",
+    "file": "system",
+    "reason": "v2.0 시스템 구축",
+    "impact": "OCR + RAG + 벡터 검색 + 프론트엔드 랜딩페이지 구현"
+  },
+  {
+    "timestamp": "2026-03-17T23:35:09.447401",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 0건"
+  },
+  {
+    "timestamp": "2026-03-17T23:43:56.326480",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 0건"
+  },
+  {
+    "timestamp": "2026-03-17T23:45:24.011811",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 0건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:02.542941",
+    "file": "test.jpg",
+    "reason": "전체 처리",
+    "impact": "파싱 5필드, 저장=True"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:19.075564",
+    "file": "search",
+    "reason": "검색: 선임",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:24.480014",
+    "file": "search",
+    "reason": "검색: 경북",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:27.247862",
+    "file": "search",
+    "reason": "검색: 010",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:29.810034",
+    "file": "search",
+    "reason": "검색: 010 5140",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:32.798026",
+    "file": "search",
+    "reason": "검색: 0103662",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:39.779380",
+    "file": "search",
+    "reason": "검색: 연구하는사람",
+    "impact": "결과 1건"
+  },
+  {
+    "timestamp": "2026-03-17T23:53:49.128897",
+    "file": "flower.jpg",
+    "reason": "전체 처리",
+    "impact": "파싱 2필드, 저장=True"
+  },
+  {
+    "timestamp": "2026-03-17T23:54:03.242924",
+    "file": "search",
+    "reason": "검색: 꽃",
+    "impact": "결과 2건"
+  },
+  {
+    "timestamp": "2026-03-17T23:54:11.209619",
+    "file": "search",
+    "reason": "검색: 38",
+    "impact": "결과 2건"
+  },
+  {
+    "timestamp": "2026-03-17T23:58:26.883102",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 2건"
+  },
+  {
+    "timestamp": "2026-03-17T23:59:50.264539",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 2건"
+  },
+  {
+    "timestamp": "2026-03-18T00:15:15.972314",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 2건"
+  },
+  {
+    "timestamp": "2026-03-18T00:16:06.967554",
+    "file": "search",
+    "reason": "검색: test",
+    "impact": "결과 2건"
+  }
+]

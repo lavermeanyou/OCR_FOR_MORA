@@ -1,106 +1,88 @@
-# OCR_FOR_MORA
+# MORA — Business Card OCR + RAG Search
 
-MORA를 위한 명함 OCR 파이프라인 — 명함 이미지에서 연락처 정보를 자동으로 추출하고 구조화합니다.
-
-## 주요 기능
-
-- **OCR 엔진**: PaddleOCR 기반 한국어/영어 텍스트 인식
-- **규칙 기반 분류기**: 정규식 + 휴리스틱으로 텍스트 블록을 필드별로 분류
-- **엔드투엔드 파이프라인**: 이미지 입력 → OCR → 분류 → 구조화된 JSON 출력
-
-## 추출 필드
-
-| 필드 | 설명 |
-|------|------|
-| `company_name` | 회사이름 |
-| `person_name` | 이름 |
-| `job_title` | 직책 |
-| `phone_number` | 전화번호 |
-| `fax_number` | 팩스번호 |
-| `email` | 이메일 |
+명함 이미지에서 연락처 정보를 자동으로 추출하고, 벡터 검색으로 즉시 찾아주는 시스템
 
 ## 프로젝트 구조
 
 ```
-├── configs/
-│   └── schema.py              # 필드 스키마 정의 (내부명 ↔ 한국어 레이블)
-├── src/
-│   ├── ocr/
-│   │   └── paddle_ocr_engine.py   # PaddleOCR 래퍼
-│   ├── classifier/
-│   │   └── rule_based.py          # 규칙 기반 텍스트 분류기
-│   ├── pipeline/
-│   │   └── extract_pipeline.py    # 엔드투엔드 파이프라인
-│   └── utils/
-├── tests/
-│   └── test_classifier.py        # 분류기 단위 테스트
-├── data/
-│   ├── ocr_outputs/              # OCR 결과 JSON
-│   └── labeled/                  # 레이블링된 데이터
-├── models/
-└── requirements.txt
+claude_mvp/
+├── backend/                ← Python FastAPI 백엔드
+│   ├── app.py              ← API 서버 진입점
+│   ├── run.py              ← 개발 서버 실행
+│   ├── requirements.txt
+│   ├── src/
+│   │   ├── ocr/            ← PaddleOCR 엔진
+│   │   ├── classifier/     ← 규칙 기반 분류기
+│   │   ├── pipeline/       ← OCR → 분류 파이프라인
+│   │   ├── skills/         ← 스킬 시스템 (OCR, Parse, Embed, Retrieval)
+│   │   └── vectorstore/    ← FAISS 벡터 저장소
+│   ├── configs/
+│   └── tests/              ← 23개 테스트
+│
+├── frontend/               ← Vanilla HTML/CSS/JS 프론트엔드
+│   ├── index.html          ← SPA (Landing, Upload, Result, Search)
+│   ├── css/
+│   │   ├── landing.css     ← 디자인 시스템 + 랜딩 애니메이션
+│   │   └── app.css         ← 앱 UI 스타일
+│   ├── js/
+│   │   ├── landing.js      ← 스크롤 카드 애니메이션
+│   │   └── app.js          ← 업로드 + 검색 로직
+│   └── assets/
+│
+├── data/                   ← OCR 결과, 벡터 저장소, 변경 이력
+└── uploads/                ← 업로드된 이미지
 ```
 
-## 설치
+## 빠른 시작
 
 ```bash
+# 1. 의존성 설치
+cd backend
 pip install -r requirements.txt
+
+# 2. 서버 실행 (프론트엔드 자동 서빙)
+python run.py
+
+# 3. 브라우저에서 열기
+# → http://localhost:8000
 ```
 
-### 의존성
+## 주요 기능
 
-- `paddlepaddle` — PaddleOCR 실행 엔진
-- `paddleocr` — OCR 모델
-- `opencv-python` — 이미지 처리
-- `Pillow` — 이미지 전처리 (리사이즈)
-- `numpy`
+| 기능 | 설명 |
+|------|------|
+| OCR | PaddleOCR 기반 한국어/영어 텍스트 인식 |
+| 명함 파싱 | 이름, 회사, 직책, 전화번호, 이메일 자동 분류 |
+| 벡터 임베딩 | 다국어 Sentence-Transformers 모델 |
+| RAG 검색 | FAISS 기반 시맨틱 유사도 검색 |
+| 랜딩 페이지 | 스크롤 애니메이션 4개 섹션 |
 
-## 사용법
+## API 엔드포인트
 
-### CLI 실행
-
-```bash
-python -m src.pipeline.extract_pipeline <이미지 경로>
-```
-
-### Python 코드에서 사용
-
-```python
-from src.pipeline.extract_pipeline import BusinessCardPipeline
-
-pipeline = BusinessCardPipeline(lang="korean")
-result = pipeline.run("path/to/business_card.jpg")
-
-# 한국어 결과 출력
-pipeline.print_result(result)
-
-# JSON 파일로 저장
-result = pipeline.run_and_save("card.jpg", "data/ocr_outputs")
-```
-
-### 출력 예시
-
-```
-========================================
-  명함 인식 결과
-========================================
-  회사이름: ABC Corporation
-  이름: 김민우
-  직책: Senior Engineer
-  전화번호: 010-1234-5678
-  팩스번호: 02-123-4567
-  이메일: minwoo@abc.com
-========================================
-```
+| Method | Path | 설명 |
+|--------|------|------|
+| POST | `/ocr` | 이미지 → OCR 결과 |
+| POST | `/parse` | 이미지 → 명함 필드 파싱 |
+| POST | `/embed` | 이미지 → 임베딩 → 벡터 저장 |
+| POST | `/process` | 전체 파이프라인 (OCR+Parse+Embed) |
+| GET | `/search?q=` | 시맨틱 벡터 검색 |
 
 ## 테스트
 
 ```bash
-python -m pytest tests/
+cd backend
+python -m pytest tests/ -v
+# → 23 passed
 ```
 
-## 향후 계획
+## 디자인 시스템
 
-- 규칙 기반 분류기 → ML 모델 교체
-- 주소 필드 추출 추가
-- 다국어 명함 지원 확대
+| Token | Value |
+|-------|-------|
+| Primary | `#15293D` |
+| Background | `#DDE2E6` |
+| Text | `#84888D` |
+| Accent | `#FF8A3D` |
+| Font (기본) | Post No Bills Jaffna |
+| Font (로고) | Patua One |
+| Font (숫자) | Konkhmer Sleokchher |
