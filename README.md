@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MORA
 
 **명함을 찍으면, AI가 정리하고, 말로 찾는다.**
@@ -94,3 +95,9 @@ Spring Boot (:8080)      ← 인증, 명함 저장/수정/삭제, 벡터 검색
 ## 라이선스
 
 
+=======
+# Memory 
+# Oriented 
+# Record 
+# Assistant
+>>>>>>> ab12c03b0d6c3f25f42f7651dcf57015c483d726
