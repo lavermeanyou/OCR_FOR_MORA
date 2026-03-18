@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+/* ── MORA 디자인 토큰 ── */
+:root {
+  --color-primary: #15293D;
+  --color-bg: #DDE2E6;
+  --color-text: #84888D;
+  --color-accent: #FF8A3D;
+  --color-white: #FFFFFF;
+  --color-dark: #0B1521;
+
+  --radius-button: 10px;
+  --radius-card: 16px;
+}
+
+@theme inline {
+  --color-primary: var(--color-primary);
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-primary);
+  --color-accent: var(--color-accent);
+  --color-muted: var(--color-text);
+}
+
+/* ── 글로벌 리셋 ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-dark);
+  color: var(--color-white);
+  overflow-x: hidden;
+}
+
+/* ── 스크롤바 커스텀 ── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-text);
+  border-radius: 3px;
+}
+
+/* ── 섹션 기본 ── */
+section {
+  scroll-margin-top: 80px;
+}

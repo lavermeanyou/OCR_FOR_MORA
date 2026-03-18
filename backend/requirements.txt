@@ -10,17 +10,5 @@ fastapi
 uvicorn
 python-multipart
 
-# ── Vector Search (RAG) ──
-sentence-transformers
-faiss-cpu
-
-# ── ML Classifier ──
-scikit-learn
-joblib
-
-# ── Auth (OAuth2 + JWT) ──
-PyJWT
-httpx
-
-# ── Testing ──
-pytest
+# ── Config ──
+python-dotenv

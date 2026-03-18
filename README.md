@@ -1,88 +1,96 @@
-# MORA — Business Card OCR + RAG Search
+# MORA
 
-명함 이미지에서 연락처 정보를 자동으로 추출하고, 벡터 검색으로 즉시 찾아주는 시스템
+**명함을 찍으면, AI가 정리하고, 말로 찾는다.**
 
-## 프로젝트 구조
+---
 
-```
-claude_mvp/
-├── backend/                ← Python FastAPI 백엔드
-│   ├── app.py              ← API 서버 진입점
-│   ├── run.py              ← 개발 서버 실행
-│   ├── requirements.txt
-│   ├── src/
-│   │   ├── ocr/            ← PaddleOCR 엔진
-│   │   ├── classifier/     ← 규칙 기반 분류기
-│   │   ├── pipeline/       ← OCR → 분류 파이프라인
-│   │   ├── skills/         ← 스킬 시스템 (OCR, Parse, Embed, Retrieval)
-│   │   └── vectorstore/    ← FAISS 벡터 저장소
-│   ├── configs/
-│   └── tests/              ← 23개 테스트
-│
-├── frontend/               ← Vanilla HTML/CSS/JS 프론트엔드
-│   ├── index.html          ← SPA (Landing, Upload, Result, Search)
-│   ├── css/
-│   │   ├── landing.css     ← 디자인 시스템 + 랜딩 애니메이션
-│   │   └── app.css         ← 앱 UI 스타일
-│   ├── js/
-│   │   ├── landing.js      ← 스크롤 카드 애니메이션
-│   │   └── app.js          ← 업로드 + 검색 로직
-│   └── assets/
-│
-├── data/                   ← OCR 결과, 벡터 저장소, 변경 이력
-└── uploads/                ← 업로드된 이미지
-```
+## 이런 경험 있으시죠?
 
-## 빠른 시작
+- 명함을 받았는데 어디 뒀는지 모르겠다
+- 연락처를 하나하나 직접 입력하기 귀찮다
+- "그때 만난 디자이너 김 아무개..." 이름이 정확히 기억 안 난다
 
-```bash
-# 1. 의존성 설치
-cd backend
-pip install -r requirements.txt
+MORA는 이 문제를 해결합니다.
 
-# 2. 서버 실행 (프론트엔드 자동 서빙)
-python run.py
+---
 
-# 3. 브라우저에서 열기
-# → http://localhost:8000
-```
+## 어떻게 동작하나요?
 
-## 주요 기능
+### 1. 찍으면 끝
+명함 사진을 올리면 AI가 텍스트를 자동으로 읽어냅니다.
 
-| 기능 | 설명 |
+### 2. 알아서 정리
+이름, 회사, 직책, 전화번호, 이메일을 자동으로 분류합니다.
+틀린 부분이 있으면 직접 수정할 수도 있습니다.
+
+### 3. 말로 검색
+"모라테크 이사", "김 대리", "디자이너" 같이 기억나는 대로 검색하면 찾아줍니다.
+단순 텍스트 매칭이 아닌, 의미를 이해하는 벡터 검색입니다.
+
+---
+
+## 프로젝트 목표
+
+- **수작업 제거**: 명함 정보를 직접 타이핑하지 않아도 되게 만든다
+- **자연어 검색**: 정확한 이름을 몰라도 기억나는 키워드로 찾을 수 있게 만든다
+- **개인 명함 데이터베이스**: 내가 받은 명함을 한 곳에서 관리할 수 있게 만든다
+
+---
+
+## 기술 스택
+
+| 영역 | 기술 |
 |------|------|
-| OCR | PaddleOCR 기반 한국어/영어 텍스트 인식 |
-| 명함 파싱 | 이름, 회사, 직책, 전화번호, 이메일 자동 분류 |
-| 벡터 임베딩 | 다국어 Sentence-Transformers 모델 |
-| RAG 검색 | FAISS 기반 시맨틱 유사도 검색 |
-| 랜딩 페이지 | 스크롤 애니메이션 4개 섹션 |
+| 프론트엔드 | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| API 서버 | Java Spring Boot 3.5, JPA, Spring Security |
+| OCR 엔진 | Python 3.11, FastAPI, PaddleOCR 3.4 |
+| 데이터베이스 | PostgreSQL 16 + pgvector |
+| 임베딩 | OpenAI text-embedding-3-small (1536차원) |
+| 인증 | JWT + bcrypt + Google/Kakao OAuth |
 
-## API 엔드포인트
+---
 
-| Method | Path | 설명 |
-|--------|------|------|
-| POST | `/ocr` | 이미지 → OCR 결과 |
-| POST | `/parse` | 이미지 → 명함 필드 파싱 |
-| POST | `/embed` | 이미지 → 임베딩 → 벡터 저장 |
-| POST | `/process` | 전체 파이프라인 (OCR+Parse+Embed) |
-| GET | `/search?q=` | 시맨틱 벡터 검색 |
+## 시스템 구조
 
-## 테스트
-
-```bash
-cd backend
-python -m pytest tests/ -v
-# → 23 passed
+```
+사용자 (브라우저)
+    │
+    ▼
+Next.js (:3000)          ← 화면
+    │
+    ▼
+Spring Boot (:8080)      ← 인증, 명함 저장/수정/삭제, 벡터 검색
+    │
+    ├──→ Python OCR (:8000)     ← 명함 이미지 → 텍스트 추출
+    ├──→ PostgreSQL + pgvector  ← 데이터 저장 + 벡터 검색
+    └──→ OpenAI API             ← 텍스트 → 벡터 변환
 ```
 
-## 디자인 시스템
+---
 
-| Token | Value |
-|-------|-------|
-| Primary | `#15293D` |
-| Background | `#DDE2E6` |
-| Text | `#84888D` |
-| Accent | `#FF8A3D` |
-| Font (기본) | Post No Bills Jaffna |
-| Font (로고) | Patua One |
-| Font (숫자) | Konkhmer Sleokchher |
+## 실행
+
+```bash
+.\start.bat
+```
+
+| 서비스 | 주소 |
+|--------|------|
+| 프론트엔드 | http://localhost:3000 |
+| API 서버 | http://localhost:8080 |
+| OCR 서비스 | http://localhost:8000 |
+| 데이터베이스 | localhost:5433 |
+
+---
+
+## 팀
+
+| GitHub | 역할 |
+|--------|------|
+| [@lavermeanyou](https://github.com/lavermeanyou) | 기획 / 개발 |
+
+---
+
+## 라이선스
+
+

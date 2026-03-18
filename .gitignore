@@ -1,16 +1,26 @@
-uploads/
+# env
+.env
+.claude/
+
+# python
 __pycache__/
 *.pyc
 .pytest_cache/
-*.egg-info/
 venv/
 .venv/
+
+# node
+node_modules/
+.next/
+pnpm-lock.yaml
+
+# ide
 .idea/
 *.iml
-web/target/
 .DS_Store
-.env
-.claude/
-data/vectorstore/
-data/ml_model/*.joblib
-data/users.json
+
+# java
+target/
+
+# data
+uploads/

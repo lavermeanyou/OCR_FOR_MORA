@@ -1,514 +1,124 @@
+# ═══════════════════════════════════════════════════════════════
+# app.py — FastAPI 애플리케이션 진입점 (메인 서버 설정)
+# ═══════════════════════════════════════════════════════════════
+#
+# [역할]
+# MORA OCR 서비스의 메인 진입 파일.
+# FastAPI 앱 인스턴스를 생성하고, CORS 미들웨어 설정,
+# OCR 라우터 등록, 정적 파일(업로드 이미지) 서빙을 구성한다.
+#
+# [코드 흐름]
+# 1) .env 파일에서 환경변수를 로드한다 (dotenv)
+# 2) PaddlePaddle의 OneDNN 관련 버그를 우회하기 위해 환경변수를 설정한다
+# 3) FastAPI 앱 인스턴스를 생성한다
+# 4) CORS 미들웨어를 추가하여 프론트엔드에서의 교차 출처 요청을 허용한다
+# 5) OCR 라우터를 /api 경로에 등록한다
+# 6) /uploads 경로에 정적 파일 서빙을 마운트한다
+# 7) 루트 경로(/)에 서비스 정보를 반환하는 엔드포인트를 정의한다
+# 8) 직접 실행 시 uvicorn으로 서버를 기동한다
+#
+# [메서드 목록]
+# - root(): GET / 엔드포인트. 서비스명, 버전, docs URL을 JSON으로 반환
+#
+# [사용된 라이브러리]
+# ───────────────────────────────────────────
+# os.environ[key] = value
+#   운영체제 환경변수를 설정한다.
+#   PaddlePaddle이 내부적으로 읽는 플래그를 미리 꺼서 버그를 우회함.
+# ───────────────────────────────────────────
+# sys.path.insert(0, path)
+#   Python 모듈 검색 경로 리스트의 맨 앞에 경로를 추가한다.
+#   backend 디렉토리를 추가해서 routers 패키지를 import 가능하게 함.
+# ───────────────────────────────────────────
+# pathlib.Path(__file__).resolve().parent
+#   현재 파일의 절대 경로를 구한 뒤 부모 디렉토리를 반환한다.
+#   프로젝트 내 상대 경로 계산에 사용.
+# ───────────────────────────────────────────
+# dotenv.load_dotenv(path)
+#   지정된 .env 파일을 읽어 환경변수(os.environ)에 자동 로드한다.
+#   API 키, 설정값 등을 코드 밖에서 관리할 수 있게 해준다.
+# ───────────────────────────────────────────
+# FastAPI(title, version)
+#   FastAPI 애플리케이션 인스턴스를 생성한다.
+#   title/version은 자동 생성되는 /docs Swagger UI에 표시됨.
+# ───────────────────────────────────────────
+# app.add_middleware(CORSMiddleware, ...)
+#   CORS(Cross-Origin Resource Sharing) 미들웨어를 추가한다.
+#   allow_origins=["*"]로 모든 출처의 요청을 허용함.
+#   프론트엔드(React 등)에서 API를 호출할 수 있게 해준다.
+# ───────────────────────────────────────────
+# app.include_router(router, prefix, tags)
+#   라우터 모듈에 정의된 엔드포인트들을 앱에 등록한다.
+#   prefix="/api"이면 라우터의 /scan이 /api/scan이 된다.
+# ───────────────────────────────────────────
+# app.mount(path, StaticFiles(directory), name)
+#   지정 디렉토리의 파일을 특정 URL 경로에서 정적으로 서빙한다.
+#   업로드된 이미지를 /uploads/파일명 으로 접근 가능하게 함.
+# ───────────────────────────────────────────
+# uvicorn.run(app, host, port)
+#   ASGI 서버인 uvicorn으로 FastAPI 앱을 실행한다.
+#   host="0.0.0.0"은 외부 접속 허용, port=8000은 서비스 포트.
+# ───────────────────────────────────────────
+#
+# ═══════════════════════════════════════════════════════════════
+
 """
-Business Card OCR + RAG Search API
+OCR Microservice — PaddleOCR + rule-based classification.
 """
-import sys
 import os
-import json
-import tempfile
-import shutil
-from datetime import datetime
+import sys
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, Query, Request
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse
+# .env 파일 자동 로드
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
+# PaddlePaddle OneDNN 버그 우회
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 # ── Path Setup ──
-# backend/ 디렉토리가 기준
+# backend 디렉토리를 sys.path에 추가하여 routers 패키지를 import 가능하게 함
 BACKEND_DIR = Path(__file__).resolve().parent
-REPO_ROOT = BACKEND_DIR.parent
-
-# backend/ 를 sys.path 에 추가 → from src.xxx 가 동작
 sys.path.insert(0, str(BACKEND_DIR))
 
-from src.pipeline.extract_pipeline import BusinessCardPipeline
-from src.skills.parsing_skill import ParsingSkill
-from src.skills.embedding_skill import EmbeddingSkill
-from src.skills.retrieval_skill import RetrievalSkill
-from src.vectorstore.faiss_store import FaissVectorStore
-from src.auth import oauth_google, oauth_kakao
-from src.auth.jwt_handler import create_token, verify_token
-from src.auth.user_store import find_or_create_user
-from src.auth.config import GOOGLE_CLIENT_ID, KAKAO_CLIENT_ID
-from src.classifier.ml.ml_classifier import MLClassifier
-from src.classifier.ml.trainer import train as ml_train
+from routers import ocr  # noqa: E402
 
 # ── App Setup ──
-app = FastAPI(title="Business Card OCR + RAG API", version="2.0")
+# FastAPI 인스턴스 생성 (Swagger UI에서 title/version 표시됨)
+app = FastAPI(title="MORA OCR Service", version="3.0")
 
+# 모든 출처에서의 교차 출처 요청을 허용하는 CORS 미들웨어
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["*"],          # 모든 출처 허용
+    allow_credentials=True,       # 쿠키/인증 헤더 허용
+    allow_methods=["*"],          # 모든 HTTP 메서드 허용
+    allow_headers=["*"],          # 모든 요청 헤더 허용
 )
 
-# ── Singleton Services ──
-pipeline = BusinessCardPipeline(lang="korean")
-parsing_skill = ParsingSkill()
-embedding_skill = EmbeddingSkill()
-vector_store = FaissVectorStore(store_dir=str(REPO_ROOT / "data" / "vectorstore"))
-retrieval_skill = RetrievalSkill(store=vector_store, embedding_skill=embedding_skill)
+# ── Router ──
+# OCR 관련 엔드포인트를 /api 경로 아래에 등록
+app.include_router(ocr.router, prefix="/api", tags=["OCR"])
 
-# ── Change Log ──
-CHANGELOG_PATH = REPO_ROOT / "data" / "changelog.json"
-
-
-def log_change(file: str, reason: str, impact: str):
-    """변경 이력 기록."""
-    CHANGELOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    entries = []
-    if CHANGELOG_PATH.exists():
-        with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
-            entries = json.load(f)
-    entries.append({
-        "timestamp": datetime.now().isoformat(),
-        "file": file,
-        "reason": reason,
-        "impact": impact,
-    })
-    with open(CHANGELOG_PATH, "w", encoding="utf-8") as f:
-        json.dump(entries, f, ensure_ascii=False, indent=2)
+# ── 이미지 파일 서빙 ──
+# 업로드된 이미지를 /uploads/파일명 URL로 접근 가능하게 정적 서빙
+UPLOAD_DIR = BACKEND_DIR.parent / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)  # 디렉토리가 없으면 생성
+app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 
 
-# ── Mount frontend (../frontend) ──
-FRONTEND_DIR = REPO_ROOT / "frontend"
-if FRONTEND_DIR.exists():
-    app.mount("/css", StaticFiles(directory=str(FRONTEND_DIR / "css")), name="css")
-    app.mount("/js", StaticFiles(directory=str(FRONTEND_DIR / "js")), name="js")
-    if (FRONTEND_DIR / "assets").exists():
-        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR / "assets")), name="assets")
-
-
-# ── Root: Serve frontend ──
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def root():
-    index_path = FRONTEND_DIR / "index.html"
-    if index_path.exists():
-        return FileResponse(str(index_path))
-    return HTMLResponse("<h1>MORA - Business Card OCR API</h1><p>Frontend not found.</p>")
-
-
-# ══════════════════════════════════════
-# AUTH ENDPOINTS
-# ══════════════════════════════════════
-
-@app.get("/auth/config")
-def auth_config():
-    """프론트엔드에 OAuth 설정 전달 (secret 제외)."""
-    return {
-        "google_enabled": bool(GOOGLE_CLIENT_ID),
-        "kakao_enabled": bool(KAKAO_CLIENT_ID),
-    }
-
-
-# ── Google OAuth2 ──
-@app.get("/auth/google/login")
-def google_login():
-    """Google 로그인 페이지로 리다이렉트."""
-    url = oauth_google.get_login_url(state="google")
-    return RedirectResponse(url)
-
-
-@app.get("/auth/google/callback")
-async def google_callback(code: str = "", error: str = ""):
-    """Google OAuth2 콜백 처리."""
-    if error or not code:
-        return RedirectResponse("/?auth_error=google_denied")
-
-    try:
-        token_data = await oauth_google.exchange_code(code)
-        access_token = token_data["access_token"]
-        user_info = await oauth_google.get_user_info(access_token)
-
-        user = find_or_create_user(
-            provider="google",
-            provider_id=user_info.get("id", ""),
-            email=user_info.get("email", ""),
-            name=user_info.get("name", ""),
-            picture=user_info.get("picture", ""),
-        )
-
-        jwt_token = create_token({
-            "user_id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "picture": user["picture"],
-            "provider": "google",
-        })
-
-        return RedirectResponse(f"/?token={jwt_token}")
-    except Exception as e:
-        return RedirectResponse(f"/?auth_error={str(e)[:100]}")
-
-
-# ── Kakao OAuth2 ──
-@app.get("/auth/kakao/login")
-def kakao_login():
-    """Kakao 로그인 페이지로 리다이렉트."""
-    url = oauth_kakao.get_login_url(state="kakao")
-    return RedirectResponse(url)
-
-
-@app.get("/auth/kakao/callback")
-async def kakao_callback(code: str = "", error: str = ""):
-    """Kakao OAuth2 콜백 처리."""
-    if error or not code:
-        return RedirectResponse("/?auth_error=kakao_denied")
-
-    try:
-        token_data = await oauth_kakao.exchange_code(code)
-        access_token = token_data["access_token"]
-        user_info = await oauth_kakao.get_user_info(access_token)
-
-        user = find_or_create_user(
-            provider="kakao",
-            provider_id=user_info.get("id", ""),
-            email=user_info.get("email", ""),
-            name=user_info.get("name", ""),
-            picture=user_info.get("picture", ""),
-        )
-
-        jwt_token = create_token({
-            "user_id": user["id"],
-            "email": user["email"],
-            "name": user["name"],
-            "picture": user["picture"],
-            "provider": "kakao",
-        })
-
-        return RedirectResponse(f"/?token={jwt_token}")
-    except Exception as e:
-        return RedirectResponse(f"/?auth_error={str(e)[:100]}")
-
-
-# ── Token 검증 ──
-@app.get("/auth/me")
-def auth_me(request: Request):
-    """현재 로그인된 사용자 정보 반환."""
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return JSONResponse(status_code=401, content={"error": "토큰이 없습니다."})
-
-    token = auth_header.split(" ", 1)[1]
-    payload = verify_token(token)
-    if not payload:
-        return JSONResponse(status_code=401, content={"error": "유효하지 않은 토큰입니다."})
-
-    return {
-        "user_id": payload.get("user_id"),
-        "email": payload.get("email"),
-        "name": payload.get("name"),
-        "picture": payload.get("picture"),
-        "provider": payload.get("provider"),
-    }
-
-
-# ── Health ──
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "version": "2.0",
-        "vector_count": vector_store.count(),
-    }
-
-
-# ── POST /ocr  (기존 OCR 파이프라인 재사용) ──
-@app.post("/ocr")
-async def ocr(file: UploadFile = File(...)):
-    """이미지 업로드 → OCR + 분류 + 구조화 결과 반환."""
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        result = pipeline.run(tmp_path)
-        log_change(file.filename, "OCR 처리", "텍스트 추출 완료")
-        return JSONResponse(content=result)
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── POST /parse ──
-@app.post("/parse")
-async def parse(file: UploadFile = File(...)):
-    """이미지 업로드 → OCR → 파싱된 명함 데이터 반환."""
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        ocr_result = pipeline.ocr_engine.extract(tmp_path)
-        text_blocks = ocr_result["text_blocks"]
-        parsed_result = parsing_skill.execute(text_blocks)
-
-        log_change(file.filename, "명함 파싱", f"필드 {len(parsed_result['parsed'])}개 추출")
-
-        return JSONResponse(content={
-            "image_file": file.filename,
-            "ocr_blocks": len(text_blocks),
-            **parsed_result,
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── POST /embed ──
-@app.post("/embed")
-async def embed(file: UploadFile = File(...)):
-    """이미지 업로드 → OCR → 파싱 → 임베딩 → 벡터 저장."""
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        ocr_result = pipeline.ocr_engine.extract(tmp_path)
-        text_blocks = ocr_result["text_blocks"]
-        parsed_result = parsing_skill.execute(text_blocks)
-        parsed = parsed_result["parsed"]
-
-        if not parsed:
-            return JSONResponse(status_code=400, content={"error": "파싱된 데이터가 없습니다."})
-
-        embed_result = embedding_skill.execute(parsed)
-
-        if not embed_result["embedding"]:
-            return JSONResponse(status_code=400, content={"error": "임베딩 생성 실패."})
-
-        vector_store.add(
-            doc_id=embed_result["id"],
-            embedding=embed_result["embedding"],
-            text=embed_result["text"],
-            metadata=embed_result["metadata"],
-        )
-
-        log_change(file.filename, "임베딩 저장", f"벡터 ID: {embed_result['id']}")
-
-        return JSONResponse(content={
-            "id": embed_result["id"],
-            "parsed": parsed,
-            "text": embed_result["text"],
-            "stored": True,
-            "total_vectors": vector_store.count(),
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── GET /search ──
-@app.get("/search")
-async def search(q: str = Query(..., description="검색 쿼리"), top_k: int = Query(5, ge=1, le=50)):
-    """자연어 쿼리로 유사 명함 벡터 검색."""
-    try:
-        results = retrieval_skill.execute(q, top_k=top_k)
-        log_change("search", f"검색: {q}", f"결과 {len(results)}건")
-        return JSONResponse(content={
-            "query": q,
-            "count": len(results),
-            "results": results,
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-# ── POST /process  (전체 파이프라인: OCR → Parse → Embed → Store) ──
-@app.post("/process")
-async def process(file: UploadFile = File(...)):
-    """전체 파이프라인: 이미지 → OCR → 파싱 → 임베딩 → 저장."""
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        # Step 1: OCR
-        ocr_result = pipeline.run(tmp_path)
-
-        # Step 2: Parse
-        text_blocks = ocr_result.get("raw_blocks", [])
-        parsed_result = parsing_skill.execute(text_blocks)
-        parsed = parsed_result["parsed"]
-
-        # Step 3: Embed + Store
-        stored = False
-        embed_id = None
-        total_vectors = vector_store.count()
-
-        if parsed:
-            embed_result = embedding_skill.execute(parsed)
-            if embed_result["embedding"]:
-                vector_store.add(
-                    doc_id=embed_result["id"],
-                    embedding=embed_result["embedding"],
-                    text=embed_result["text"],
-                    metadata=embed_result["metadata"],
-                )
-                stored = True
-                embed_id = embed_result["id"]
-                total_vectors = vector_store.count()
-
-        log_change(file.filename, "전체 처리", f"파싱 {len(parsed)}필드, 저장={stored}")
-
-        return JSONResponse(content={
-            **ocr_result,
-            "parsed": parsed,
-            "stored": stored,
-            "embed_id": embed_id,
-            "total_vectors": total_vectors,
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        os.unlink(tmp_path)
-
-
-# ── GET /changelog ──
-@app.get("/changelog")
-def get_changelog():
-    """변경 이력 조회."""
-    if CHANGELOG_PATH.exists():
-        with open(CHANGELOG_PATH, "r", encoding="utf-8") as f:
-            return JSONResponse(content=json.load(f))
-    return JSONResponse(content=[])
-
-
-# ── GET /stats ──
-@app.get("/stats")
-def stats():
-    """시스템 통계."""
-    changelog_count = 0
-    if CHANGELOG_PATH.exists():
-        with open(CHANGELOG_PATH, encoding="utf-8") as f:
-            changelog_count = len(json.load(f))
-    return {
-        "vector_count": vector_store.count(),
-        "changelog_entries": changelog_count,
-    }
-
-
-# ══════════════════════════════════════
-# ML CLASSIFIER ENDPOINTS
-# ══════════════════════════════════════
-
-# ML 분류기 (학습된 모델이 있으면 로드)
-_ml_classifier = None
-
-
-def _get_ml_classifier():
-    global _ml_classifier
-    if _ml_classifier is None:
-        try:
-            _ml_classifier = MLClassifier()
-        except FileNotFoundError:
-            return None
-    return _ml_classifier
-
-
-@app.post("/ml/train")
-async def ml_train_endpoint(
-    samples_per_field: int = Query(5000, ge=100, le=50000),
-    rounds: int = Query(2, ge=1, le=5),
-):
-    """ML 분류기 학습 실행."""
-    try:
-        result = ml_train(
-            samples_per_field=samples_per_field,
-            reinforcement_rounds=rounds,
-            verbose=False,
-        )
-        # 학습 후 모델 재로드
-        global _ml_classifier
-        _ml_classifier = MLClassifier()
-
-        log_change("ml_model", "ML 분류기 학습", f"정확도: {result['accuracy']:.4f}")
-
-        return JSONResponse(content={
-            "accuracy": result["accuracy"],
-            "report": result["report"],
-            "model_path": result["model_path"],
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-@app.get("/ml/status")
-def ml_status():
-    """ML 분류기 상태 확인."""
-    clf = _get_ml_classifier()
-    if clf is None:
-        return {"trained": False, "message": "모델이 학습되지 않았습니다."}
-    return {
-        "trained": True,
-        "accuracy": clf.accuracy,
-        "n_features": clf.meta.get("n_features"),
-        "total_samples": clf.meta.get("total_samples"),
-        "reinforcement_rounds": clf.meta.get("reinforcement_rounds"),
-    }
-
-
-@app.post("/ml/classify")
-async def ml_classify(file: UploadFile = File(...)):
-    """ML 분류기로 명함 이미지 처리."""
-    clf = _get_ml_classifier()
-    if clf is None:
-        return JSONResponse(status_code=400, content={"error": "모델이 학습되지 않았습니다. POST /ml/train 으로 학습하세요."})
-
-    suffix = Path(file.filename).suffix
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
-
-    try:
-        # OCR
-        ocr_result = pipeline.ocr_engine.extract(tmp_path)
-        text_blocks = ocr_result["text_blocks"]
-
-        # ML 분류
-        classified = clf.classify_all_blocks(text_blocks)
-
-        # 구조화
-        best = {}
-        for block in classified:
-            field = block["field"]
-            if field == "unknown":
-                continue
-            if field not in best or block["confidence"] > best[field]["confidence"]:
-                best[field] = block
-
-        field_map = {
-            "person_name": "name", "company_name": "company",
-            "job_title": "position", "phone_number": "phone",
-            "fax_number": "fax", "email": "email",
-        }
-        parsed = {field_map.get(k, k): v["text"] for k, v in best.items()}
-
-        log_change(file.filename, "ML 분류", f"필드 {len(parsed)}개 추출")
-
-        return JSONResponse(content={
-            "image_file": file.filename,
-            "classifier": "ml",
-            "model_accuracy": clf.accuracy,
-            "classified_blocks": classified,
-            "parsed": parsed,
-        })
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        os.unlink(tmp_path)
+    """서비스 상태 확인용 루트 엔드포인트."""
+    return {"service": "MORA OCR Service", "version": "3.0", "docs": "/docs"}
 
 
 if __name__ == "__main__":
+    # 직접 실행 시 uvicorn ASGI 서버로 기동 (개발 모드)
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
