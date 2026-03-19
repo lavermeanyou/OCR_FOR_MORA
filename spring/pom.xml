@@ -67,6 +67,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- .env 파일 자동 로드 -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
+
         <!-- Spring Boot Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -127,9 +127,9 @@ export default function CardsPage() {
               }}
             >
               {/* 명함 이미지 (있는 경우에만) */}
-              {card.image_url && (
+              {card.imageUrl && (
                 <img
-                  src={`${IMAGE_BASE}${card.image_url}`}
+                  src={`${IMAGE_BASE}${card.imageUrl}`}
                   alt={card.name}
                   style={{ width: '100%', height: 160, objectFit: 'cover', borderBottom: '1px solid rgba(255,255,255,0.05)' }}
                 />
@@ -155,8 +155,8 @@ export default function CardsPage() {
         >
           {/* stopPropagation으로 모달 내부 클릭이 오버레이 닫기를 트리거하지 않도록 방지 */}
           <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500, width: '100%', borderRadius: 20, background: '#0f1a28', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden' }}>
-            {popup.image_url && (
-              <img src={`${IMAGE_BASE}${popup.image_url}`} alt={popup.name} style={{ width: '100%', maxHeight: 300, objectFit: 'contain', background: '#0a0e14' }} />
+            {popup.imageUrl && (
+              <img src={`${IMAGE_BASE}${popup.imageUrl}`} alt={popup.name} style={{ width: '100%', maxHeight: 300, objectFit: 'contain', background: '#0a0e14' }} />
             )}
             <div style={{ padding: 32 }}>
               <h2 style={{ fontSize: 22, fontWeight: 700, color: 'white' }}>{popup.name}</h2>
@@ -205,7 +205,7 @@ export default function CardsPage() {
               <div key={f.key} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 12 }}>
                 <span style={{ width: 56, fontSize: 13, color: 'rgba(255,255,255,0.35)', textAlign: 'right' }}>{f.label}</span>
                 <input
-                  value={editing[f.key]}
+                  value={editing[f.key] ?? ''}
                   onChange={(e) => setEditing({ ...editing, [f.key]: e.target.value })}
                   style={{
                     flex: 1, padding: '12px 14px', borderRadius: 10,

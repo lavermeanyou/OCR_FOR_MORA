@@ -121,9 +121,9 @@ export default function SearchPage() {
                 }}
               >
                 {/* 이미지 썸네일 또는 플레이스홀더 */}
-                {card.image_url ? (
+                {card.imageUrl ? (
                   <img
-                    src={`${IMAGE_BASE}${card.image_url}`}
+                    src={`${IMAGE_BASE}${card.imageUrl}`}
                     alt={card.name}
                     style={{ width: 100, height: 70, objectFit: 'cover', borderRadius: 10, flexShrink: 0 }}
                   />
@@ -139,10 +139,9 @@ export default function SearchPage() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
                     <h3 style={{ fontSize: 17, fontWeight: 700, color: 'white' }}>{card.name || '-'}</h3>
-                    {/* similarity 필드가 있으면 일치율(%)을 표시 */}
-                    {(card as BusinessCard & { similarity?: number }).similarity !== undefined && (
+                    {card.similarity !== undefined && (
                       <span style={{ fontSize: 11, color: '#FF8A3D', fontWeight: 600 }}>
-                        {Math.round(((card as BusinessCard & { similarity?: number }).similarity || 0) * 100)}% 일치
+                        {Math.round((card.similarity || 0) * 100)}% 일치
                       </span>
                     )}
                   </div>
@@ -172,8 +171,8 @@ export default function SearchPage() {
             maxWidth: 500, width: '100%', borderRadius: 20,
             background: '#0f1a28', border: '1px solid rgba(255,255,255,0.1)', overflow: 'hidden',
           }}>
-            {popup.image_url && (
-              <img src={`${IMAGE_BASE}${popup.image_url}`} alt={popup.name}
+            {popup.imageUrl && (
+              <img src={`${IMAGE_BASE}${popup.imageUrl}`} alt={popup.name}
                 style={{ width: '100%', maxHeight: 300, objectFit: 'contain', background: '#0a0e14' }} />
             )}
             <div style={{ padding: 32 }}>

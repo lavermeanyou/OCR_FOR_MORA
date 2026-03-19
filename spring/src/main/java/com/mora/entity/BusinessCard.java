@@ -96,8 +96,8 @@ public class BusinessCard {
     /** 명함 이미지 URL (S3 등 외부 저장소 경로) */
     private String imageUrl;
 
-    /** 임베딩 벡터 문자열 (TEXT 타입, pgvector의 vector 타입으로 CAST하여 검색에 사용) */
-    @Column(columnDefinition = "TEXT")
+    /** 임베딩 벡터 (pgvector vector(1536) 타입) */
+    @Column(columnDefinition = "vector(1536)")
     private String embedding;
 
     /** 명함 등록 일시 (INSERT 시 자동 설정, UPDATE 시 변경 불가) */

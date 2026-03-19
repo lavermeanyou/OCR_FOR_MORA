@@ -99,7 +99,7 @@ export default function UploadPage() {
       setEditPosition(res.data.position)
       setEditPhone(res.data.phone)
       setEditEmail(res.data.email)
-      setImageUrl(res.data.image_url || '')
+      setImageUrl(res.data.imageUrl || '')
     } else {
       setError(res.error)
     }
@@ -120,7 +120,7 @@ export default function UploadPage() {
       const res = await fetch(`${API_BASE}/api/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ card, image_url: imageUrl }),
+        body: JSON.stringify({ ...card, imageUrl }),
       })
       const json = await res.json()
       setSaving(false)

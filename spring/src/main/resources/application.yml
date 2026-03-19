@@ -3,12 +3,12 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5433/mora
+    url: jdbc:postgresql://localhost:5433/mora?stringtype=unspecified
     username: mora
     password: mora1234
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: none
     properties:
       hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
 

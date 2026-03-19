@@ -6,7 +6,9 @@ import com.mora.entity.BusinessCard;
 import com.mora.repository.BusinessCardRepository;
 import org.springframework.stereotype.Service;
 
-import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 /**
@@ -201,10 +203,13 @@ public class CardService {
             cr.setEmail((String) row.get("email"));
             cr.setRawOcrText((String) row.get("raw_ocr_text"));
             cr.setImageUrl((String) row.get("image_url"));
-            // Timestamp → LocalDateTime 변환
-            cr.setCreatedAt(row.get("created_at") != null
-                    ? ((Timestamp) row.get("created_at")).toLocalDateTime()
-                    : null);
+            // created_at → LocalDateTime 변환 (Instant 또는 Timestamp 둘 다 대응)
+            Object createdAtObj = row.get("created_at");
+            if (createdAtObj instanceof Instant) {
+                cr.setCreatedAt(((Instant) createdAtObj).atZone(ZoneId.systemDefault()).toLocalDateTime());
+            } else if (createdAtObj instanceof java.sql.Timestamp) {
+                cr.setCreatedAt(((java.sql.Timestamp) createdAtObj).toLocalDateTime());
+            }
             // 유사도 점수 설정 (0~1, 높을수록 유사)
             cr.setSimilarity(row.get("similarity") != null
                     ? ((Number) row.get("similarity")).doubleValue()
