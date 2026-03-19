@@ -12,7 +12,7 @@
 // 2) handleFile()이 File 객체를 받아 FileReader로 미리보기 생성
 // 3) "명함 스캔하기" 클릭 → handleScan()이 scanCard() API 호출
 // 4) OCR 결과가 돌아오면 각 필드(이름, 회사, 직책, 전화, 이메일) 편집 가능
-// 5) "확인 & 저장" 클릭 → handleSave()가 /api/save 엔드포인트에 POST 요청
+// 5) "확인 & 저장" 클릭 → handleSave()가 saveCard() API 호출
 // 6) 저장 성공 시 완료 화면 표시 → "다른 명함 스캔" 버튼으로 초기화
 //
 // [컴포넌트/함수 목록]
@@ -20,19 +20,17 @@
 // - handleFile():   File 객체를 받아 상태를 초기화하고 미리보기(base64)를 생성
 // - handleDrop():   드래그앤드롭 이벤트에서 이미지 파일을 추출하여 handleFile 호출
 // - handleScan():   scanCard() API를 호출하고 결과를 편집 필드에 세팅
-// - handleSave():   수정된 명함 데이터를 /api/save 엔드포인트에 POST로 저장
+// - handleSave():   수정된 명함 데이터를 saveCard() API로 저장
 // - handleReset():  모든 상태를 초기화하여 새 명함 업로드를 시작
 //
 // [사용된 라이브러리/훅]
 // ───────────────────────────────────────────
-// useState()          — file, preview, loading, saving, error, result 등 다수의 UI 상태 관리
+// useState()          — file, preview, isLoading, isSaving, error, scanResult 등 다수의 UI 상태 관리
 // useCallback()       — handleFile, handleDrop 함수를 메모이제이션하여 불필요한 재생성 방지
 // scanCard() (api)    — FormData에 이미지를 담아 /api/scan 엔드포인트에 OCR 요청
-// saveCard() (api)    — (임포트만 됨, handleSave에서는 직접 fetch 사용)
+// saveCard() (api)    — 명함 데이터를 /api/save 엔드포인트에 저장
 // BusinessCard (type) — 명함 데이터의 타입 정의 (name, company, position, phone, email 등)
 // FileReader (Web API)— 이미지 파일을 base64 Data URL로 변환하여 미리보기에 사용
-// fetch()             — /api/save 엔드포인트에 명함 저장 요청
-// localStorage        — JWT 토큰(mora_token)을 읽어 Authorization 헤더에 포함
 // ───────────────────────────────────────────
 
 'use client'
@@ -41,20 +39,17 @@ import { useState, useCallback } from 'react'
 import { scanCard, saveCard } from '@/lib/api'
 import type { BusinessCard } from '@/types'
 
-// 백엔드 API 기본 URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
-
 export default function UploadPage() {
   // === 파일 및 미리보기 관련 상태 ===
   const [file, setFile] = useState<File | null>(null)          // 선택된 이미지 파일
   const [preview, setPreview] = useState<string | null>(null)  // base64 미리보기 URL
-  const [loading, setLoading] = useState(false)                // OCR 스캔 중 여부
-  const [saving, setSaving] = useState(false)                  // DB 저장 중 여부
+  const [isLoading, setIsLoading] = useState(false)                // OCR 스캔 중 여부
+  const [isSaving, setIsSaving] = useState(false)                  // DB 저장 중 여부
   const [error, setError] = useState<string | null>(null)      // 에러 메시지
-  const [result, setResult] = useState<BusinessCard | null>(null)  // OCR 결과 데이터
+  const [scanResult, setScanResult] = useState<BusinessCard | null>(null)  // OCR 결과 데이터
   const [imageUrl, setImageUrl] = useState('')                 // 서버에 저장된 이미지 경로
-  const [saved, setSaved] = useState(false)                    // 저장 완료 여부
-  const [dragOver, setDragOver] = useState(false)              // 드래그 오버 상태 (UI 피드백용)
+  const [isSaved, setIsSaved] = useState(false)                    // 저장 완료 여부
+  const [isDragOver, setIsDragOver] = useState(false)              // 드래그 오버 상태 (UI 피드백용)
 
   // === OCR 결과를 사용자가 수정할 수 있는 편집 필드 ===
   const [editName, setEditName] = useState('')
@@ -67,8 +62,8 @@ export default function UploadPage() {
   const handleFile = useCallback((f: File) => {
     setFile(f)
     setError(null)
-    setResult(null)
-    setSaved(false)
+    setScanResult(null)
+    setIsSaved(false)
     const reader = new FileReader()
     reader.onload = (e) => setPreview(e.target?.result as string)  // base64 Data URL
     reader.readAsDataURL(f)
@@ -77,7 +72,7 @@ export default function UploadPage() {
   // 드래그앤드롭 이벤트 핸들러 — 이미지 파일만 허용
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
-    setDragOver(false)
+    setIsDragOver(false)
     const f = e.dataTransfer.files[0]
     if (f && f.type.startsWith('image/')) handleFile(f)
   }, [handleFile])
@@ -85,15 +80,15 @@ export default function UploadPage() {
   // OCR 스캔 실행 — scanCard API 호출 후 결과를 편집 필드에 세팅
   const handleScan = async () => {
     if (!file) return
-    setLoading(true)
+    setIsLoading(true)
     setError(null)
 
     const res = await scanCard(file)
-    setLoading(false)
+    setIsLoading(false)
 
     if (res.success) {
       // OCR 결과를 각 편집 필드에 초기값으로 설정
-      setResult(res.data)
+      setScanResult(res.data)
       setEditName(res.data.name)
       setEditCompany(res.data.company)
       setEditPosition(res.data.position)
@@ -107,7 +102,7 @@ export default function UploadPage() {
 
   // 수정된 명함 데이터를 DB에 저장
   const handleSave = async () => {
-    setSaving(true)
+    setIsSaving(true)
     setError(null)
 
     const card: BusinessCard = {
@@ -115,30 +110,19 @@ export default function UploadPage() {
       phone: editPhone, email: editEmail,
     }
 
-    try {
-      const token = localStorage.getItem('mora_token') || ''
-      const res = await fetch(`${API_BASE}/api/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ ...card, imageUrl }),
-      })
-      const json = await res.json()
-      setSaving(false)
+    const res = await saveCard(card, imageUrl)
+    setIsSaving(false)
 
-      if (json.success) {
-        setSaved(true)  // 저장 완료 화면으로 전환
-      } else {
-        setError(json.error || '저장 실패')
-      }
-    } catch {
-      setSaving(false)
-      setError('서버 연결 실패')
+    if (res.success) {
+      setIsSaved(true)  // 저장 완료 화면으로 전환
+    } else {
+      setError(res.error || '저장 실패')
     }
   }
 
   // 모든 상태를 초기화하여 새 명함 업로드를 시작
   const handleReset = () => {
-    setFile(null); setPreview(null); setResult(null); setSaved(false); setError(null); setImageUrl('')
+    setFile(null); setPreview(null); setScanResult(null); setIsSaved(false); setError(null); setImageUrl('')
   }
 
   return (
@@ -149,16 +133,16 @@ export default function UploadPage() {
       </p>
 
       {/* ── 업로드 영역: 드래그앤드롭 + 파일 선택 ── */}
-      {!result && !saved && (
+      {!scanResult && !isSaved && (
         <>
           <div
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-            onDragLeave={() => setDragOver(false)}
+            onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+            onDragLeave={() => setIsDragOver(false)}
             onDrop={handleDrop}
             style={{
               marginTop: 32, padding: preview ? 24 : 60, borderRadius: 16,
-              border: `2px dashed ${dragOver ? '#FF8A3D' : 'rgba(255,255,255,0.1)'}`,
-              background: dragOver ? 'rgba(255,138,61,0.05)' : 'rgba(255,255,255,0.02)',
+              border: `2px dashed ${isDragOver ? '#FF8A3D' : 'rgba(255,255,255,0.1)'}`,
+              background: isDragOver ? 'rgba(255,138,61,0.05)' : 'rgba(255,255,255,0.02)',
               textAlign: 'center',
             }}
           >
@@ -185,12 +169,12 @@ export default function UploadPage() {
           </div>
           {/* 파일이 선택된 경우에만 스캔 버튼 표시 */}
           {file && (
-            <button onClick={handleScan} disabled={loading} style={{
+            <button onClick={handleScan} disabled={isLoading} style={{
               width: '100%', marginTop: 20, padding: '16px 0', borderRadius: 12, border: 'none',
               background: '#FF8A3D', color: 'white', fontSize: 15, fontWeight: 600,
-              cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1,
+              cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.5 : 1,
             }}>
-              {loading ? '스캔 중...' : '명함 스캔하기'}
+              {isLoading ? '스캔 중...' : '명함 스캔하기'}
             </button>
           )}
         </>
@@ -204,7 +188,7 @@ export default function UploadPage() {
       )}
 
       {/* ── OCR 결과: 원본 이미지 + 수정 폼 ── */}
-      {result && !saved && (
+      {scanResult && !isSaved && (
         <div style={{ marginTop: 32 }}>
           {/* 업로드한 원본 명함 이미지 */}
           {preview && (
@@ -251,13 +235,13 @@ export default function UploadPage() {
             </div>
 
             {/* OCR 원본 텍스트 블록 — AI가 추출한 원시 텍스트 조각들을 태그 형태로 표시 */}
-            {result.raw_texts && result.raw_texts.length > 0 && (
+            {scanResult.raw_texts && scanResult.raw_texts.length > 0 && (
               <div style={{ marginTop: 28, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                 <p style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.25)', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 10 }}>
                   OCR 원본 텍스트
                 </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {result.raw_texts.map((t, i) => (
+                  {scanResult.raw_texts.map((t, i) => (
                     <span key={i} style={{
                       padding: '6px 12px', borderRadius: 8,
                       background: 'rgba(255,255,255,0.03)', fontSize: 12, color: 'rgba(255,255,255,0.45)', fontFamily: 'monospace',
@@ -269,12 +253,12 @@ export default function UploadPage() {
 
             {/* 저장/다시 스캔 버튼 */}
             <div style={{ display: 'flex', gap: 12, marginTop: 28 }}>
-              <button onClick={handleSave} disabled={saving} style={{
+              <button onClick={handleSave} disabled={isSaving} style={{
                 flex: 1, padding: '16px 0', borderRadius: 12, border: 'none',
                 background: '#FF8A3D', color: 'white', fontSize: 15, fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1,
+                cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.5 : 1,
               }}>
-                {saving ? '저장 중...' : '확인 & 저장'}
+                {isSaving ? '저장 중...' : '확인 & 저장'}
               </button>
               <button onClick={handleReset} style={{
                 flex: 1, padding: '16px 0', borderRadius: 12,
@@ -287,7 +271,7 @@ export default function UploadPage() {
       )}
 
       {/* ── 저장 완료 화면 ── */}
-      {saved && (
+      {isSaved && (
         <div style={{
           marginTop: 32, padding: 40, borderRadius: 16, textAlign: 'center',
           border: '1px solid rgba(255,138,61,0.2)', background: 'rgba(255,138,61,0.05)',

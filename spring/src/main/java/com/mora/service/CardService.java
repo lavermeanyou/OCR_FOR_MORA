@@ -63,7 +63,7 @@ import java.util.*;
  *   — 엔티티를 응답 DTO로 변환하는 정적 팩토리 메서드.
  *
  * java.sql.Timestamp
- *   — 네이티브 쿼리 결과의 created_at 컬럼을 LocalDateTime으로 변환할 때 사용.
+ *   — 네이티브 쿼리 결과의 cardResponseeated_at 컬럼을 LocalDateTime으로 변환할 때 사용.
  * ───────────────────────────────────────────
  */
 @Service
@@ -85,7 +85,7 @@ public class CardService {
         // 명함의 주요 필드들을 하나의 문자열로 합쳐 임베딩 입력 텍스트를 만든다
         String textForEmbedding = buildEmbeddingText(
                 request.getName(), request.getCompany(), request.getPosition(),
-                request.getPhone(), request.getEmail(), request.getRawOcrText()
+                request.getPhone(), request.getEmail(), request.getRawOcardResponseText()
         );
 
         // OpenAI API를 통해 임베딩 벡터를 생성한다 (실패 시 null)
@@ -99,7 +99,7 @@ public class CardService {
         card.setPosition(request.getPosition());
         card.setPhone(request.getPhone());
         card.setEmail(request.getEmail());
-        card.setRawOcrText(request.getRawOcrText());
+        card.setRawOcardResponseText(request.getRawOcardResponseText());
         card.setImageUrl(request.getImageUrl());
         card.setEmbedding(embedding);
 
@@ -139,9 +139,9 @@ public class CardService {
         card.setPosition(request.getPosition());
         card.setPhone(request.getPhone());
         card.setEmail(request.getEmail());
-        // null이 아닌 경우에만 rawOcrText와 imageUrl을 업데이트 (부분 수정 지원)
-        if (request.getRawOcrText() != null) {
-            card.setRawOcrText(request.getRawOcrText());
+        // null이 아닌 경우에만 rawOcardResponseText와 imageUrl을 업데이트 (부분 수정 지원)
+        if (request.getRawOcardResponseText() != null) {
+            card.setRawOcardResponseText(request.getRawOcardResponseText());
         }
         if (request.getImageUrl() != null) {
             card.setImageUrl(request.getImageUrl());
@@ -150,7 +150,7 @@ public class CardService {
         // 수정된 필드로 임베딩을 재생성
         String textForEmbedding = buildEmbeddingText(
                 card.getName(), card.getCompany(), card.getPosition(),
-                card.getPhone(), card.getEmail(), card.getRawOcrText()
+                card.getPhone(), card.getEmail(), card.getRawOcardResponseText()
         );
         card.setEmbedding(embeddingService.getEmbedding(textForEmbedding));
 
@@ -194,27 +194,27 @@ public class CardService {
 
         // 네이티브 쿼리 결과(Map)를 CardResponse DTO로 변환
         return results.stream().map(row -> {
-            CardResponse cr = new CardResponse();
-            cr.setId(UUID.fromString(row.get("id").toString()));
-            cr.setName((String) row.get("name"));
-            cr.setCompany((String) row.get("company"));
-            cr.setPosition((String) row.get("position"));
-            cr.setPhone((String) row.get("phone"));
-            cr.setEmail((String) row.get("email"));
-            cr.setRawOcrText((String) row.get("raw_ocr_text"));
-            cr.setImageUrl((String) row.get("image_url"));
-            // created_at → LocalDateTime 변환 (Instant 또는 Timestamp 둘 다 대응)
-            Object createdAtObj = row.get("created_at");
-            if (createdAtObj instanceof Instant) {
-                cr.setCreatedAt(((Instant) createdAtObj).atZone(ZoneId.systemDefault()).toLocalDateTime());
-            } else if (createdAtObj instanceof java.sql.Timestamp) {
-                cr.setCreatedAt(((java.sql.Timestamp) createdAtObj).toLocalDateTime());
+            CardResponse cardResponse = new CardResponse();
+            cardResponse.setId(UUID.fromString(row.get("id").toString()));
+            cardResponse.setName((String) row.get("name"));
+            cardResponse.setCompany((String) row.get("company"));
+            cardResponse.setPosition((String) row.get("position"));
+            cardResponse.setPhone((String) row.get("phone"));
+            cardResponse.setEmail((String) row.get("email"));
+            cardResponse.setRawOcardResponseText((String) row.get("raw_ocardResponse_text"));
+            cardResponse.setImageUrl((String) row.get("image_url"));
+            // cardResponseeated_at → LocalDateTime 변환 (Instant 또는 Timestamp 둘 다 대응)
+            Object cardResponseeatedAtObj = row.get("cardResponseeated_at");
+            if (cardResponseeatedAtObj instanceof Instant) {
+                cardResponse.setCreatedAt(((Instant) cardResponseeatedAtObj).atZone(ZoneId.systemDefault()).toLocalDateTime());
+            } else if (cardResponseeatedAtObj instanceof java.sql.Timestamp) {
+                cardResponse.setCreatedAt(((java.sql.Timestamp) cardResponseeatedAtObj).toLocalDateTime());
             }
             // 유사도 점수 설정 (0~1, 높을수록 유사)
-            cr.setSimilarity(row.get("similarity") != null
+            cardResponse.setSimilarity(row.get("similarity") != null
                     ? ((Number) row.get("similarity")).doubleValue()
                     : null);
-            return cr;
+            return cardResponse;
         }).toList();
     }
 
@@ -224,14 +224,14 @@ public class CardService {
      * null인 필드는 건너뛴다.
      */
     private String buildEmbeddingText(String name, String company, String position,
-                                       String phone, String email, String rawOcrText) {
+                                       String phone, String email, String rawOcardResponseText) {
         StringBuilder sb = new StringBuilder();
         if (name != null) sb.append(name).append(" ");
         if (company != null) sb.append(company).append(" ");
         if (position != null) sb.append(position).append(" ");
         if (phone != null) sb.append(phone).append(" ");
         if (email != null) sb.append(email).append(" ");
-        if (rawOcrText != null) sb.append(rawOcrText);
+        if (rawOcardResponseText != null) sb.append(rawOcardResponseText);
         return sb.toString().trim();
     }
 }

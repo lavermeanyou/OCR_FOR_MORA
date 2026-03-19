@@ -7,7 +7,7 @@
 // 각 명함의 상세 보기(팝업), 수정(모달), 삭제 기능을 제공한다.
 //
 // [코드 흐름]
-// 1) 컴포넌트 마운트 시 useEffect → load() 호출 → getMyCards() API로 명함 목록 조회
+// 1) 컴포넌트 마운트 시 useEffect → getCards() 호출 → getMyCards() API로 명함 목록 조회
 // 2) 카드 그리드로 명함 목록 렌더링 (2열 그리드, 이미지 + 기본 정보)
 // 3) 카드 클릭 → setPopup(card) → 상세 보기 팝업 표시
 // 4) 팝업에서 "수정" 클릭 → setEditing({...popup}) → 수정 모달 전환
@@ -16,81 +16,76 @@
 //
 // [컴포넌트/함수 목록]
 // - CardsPage():     명함 목록 조회·표시·수정·삭제를 관리하는 페이지 컴포넌트
-// - load():          getMyCards() API를 호출하여 명함 목록을 가져오는 함수
-// - getToken():      localStorage에서 JWT 토큰을 읽어오는 유틸 함수
-// - handleDelete():  confirm 확인 후 서버에 DELETE 요청을 보내 명함을 삭제
-// - handleUpdate():  수정된 명함 데이터를 서버에 PUT 요청으로 업데이트
+// - getCards():      getMyCards() API를 호출하여 명함 목록을 가져오는 함수
+// - handleDelete():  confirm 확인 후 deleteCard() API를 호출하여 명함을 삭제
+// - handleUpdate():  수정된 명함 데이터를 updateCard() API로 업데이트
 //
 // [사용된 라이브러리/훅]
 // ───────────────────────────────────────────
-// useState()          — cards(명함 배열), loading, error, popup(상세 팝업), editing(수정 모달), saving 상태 관리
+// useState()          — cards(명함 배열), isLoading, error, popup(상세 팝업), editing(수정 모달), isSaving 상태 관리
 // useEffect()         — 마운트 시 명함 목록을 자동으로 불러오기
 // getMyCards() (api)  — GET /api/cards 엔드포인트로 내 명함 목록 조회
+// deleteCard() (api)  — DELETE /api/cards/:id 엔드포인트로 명함 삭제
+// updateCard() (api)  — PUT /api/cards/:id 엔드포인트로 명함 수정
 // BusinessCard (type) — 명함 데이터 타입 (id, name, company, position, phone, email, image_url 등)
-// fetch()             — DELETE /api/cards/:id (삭제), PUT /api/cards/:id (수정) 요청
-// localStorage        — JWT 토큰을 읽어 Authorization 헤더에 포함
 // confirm() (Web API) — 삭제 전 사용자 확인 대화상자
 // ───────────────────────────────────────────
 
 'use client'
 
 import { useEffect, useState } from 'react'
-import { getMyCards } from '@/lib/api'
+import { getMyCards, deleteCard, updateCard } from '@/lib/api'
 import type { BusinessCard } from '@/types'
 
-// 백엔드 API URL과 이미지 서빙 URL (Python FastAPI 서버)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+// 이미지 서빙 URL (Python FastAPI 서버)
 const IMAGE_BASE = 'http://localhost:8000'
 
 export default function CardsPage() {
   const [cards, setCards] = useState<BusinessCard[]>([])           // 명함 목록 배열
-  const [loading, setLoading] = useState(true)                     // 목록 로딩 중 여부
+  const [isLoading, setIsLoading] = useState(true)                 // 목록 로딩 중 여부
   const [error, setError] = useState<string | null>(null)          // 에러 메시지
   const [popup, setPopup] = useState<BusinessCard | null>(null)    // 상세 보기 팝업에 표시할 명함
   const [editing, setEditing] = useState<BusinessCard | null>(null) // 수정 모달에 표시할 명함
-  const [saving, setSaving] = useState(false)                      // 수정 저장 중 여부
+  const [isSaving, setIsSaving] = useState(false)                      // 수정 저장 중 여부
 
   // API에서 명함 목록을 조회하는 함수
-  async function load() {
-    setLoading(true)
+  async function getCards() {
+    setIsLoading(true)
     const res = await getMyCards()
-    setLoading(false)
+    setIsLoading(false)
     if (res.success) setCards(res.data)
     else setError(res.error)
   }
 
   // 컴포넌트 마운트 시 명함 목록 로드
-  useEffect(() => { load() }, [])
-
-  // localStorage에서 JWT 토큰을 읽어오는 헬퍼 함수
-  function getToken() { return localStorage.getItem('mora_token') || '' }
+  useEffect(() => { getCards() }, [])
 
   // 명함 삭제 — confirm 확인 후 DELETE 요청
   async function handleDelete(id: string) {
     if (!confirm('정말 삭제하시겠습니까?')) return
-    try {
-      await fetch(`${API_BASE}/api/cards/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } })
+    const res = await deleteCard(id)
+    if (res.success) {
       // 로컬 상태에서도 즉시 제거하여 UI 반영
       setCards(cards.filter(c => c.id !== id))
       setPopup(null)
-    } catch { alert('삭제 실패') }
+    } else {
+      alert(res.error || '삭제 실패')
+    }
   }
 
-  // 명함 수정 — PUT 요청으로 업데이트 후 목록 새로고침
+  // 명함 수정 — updateCard API로 업데이트 후 목록 새로고침
   async function handleUpdate() {
     if (!editing?.id) return
-    setSaving(true)
-    try {
-      await fetch(`${API_BASE}/api/cards/${editing.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
-        body: JSON.stringify(editing),
-      })
-      setSaving(false)
+    setIsSaving(true)
+    const res = await updateCard(editing.id, editing)
+    setIsSaving(false)
+    if (res.success) {
       setEditing(null)
       setPopup(null)
-      load()  // 수정 후 목록을 서버에서 다시 불러옴
-    } catch { setSaving(false); alert('수정 실패') }
+      getCards()  // 수정 후 목록을 서버에서 다시 불러옴
+    } else {
+      alert(res.error || '수정 실패')
+    }
   }
 
   return (
@@ -101,12 +96,12 @@ export default function CardsPage() {
       </p>
 
       {/* 로딩 중 표시 */}
-      {loading && <p style={{ marginTop: 40, color: 'rgba(255,255,255,0.3)' }}>불러오는 중...</p>}
+      {isLoading && <p style={{ marginTop: 40, color: 'rgba(255,255,255,0.3)' }}>불러오는 중...</p>}
       {/* 에러 표시 */}
       {error && <div style={{ marginTop: 20, padding: 14, borderRadius: 12, background: 'rgba(239,68,68,0.1)', color: '#ef4444', fontSize: 14 }}>{error}</div>}
 
       {/* 명함이 없을 때 빈 상태 표시 */}
-      {!loading && !error && cards.length === 0 && (
+      {!isLoading && !error && cards.length === 0 && (
         <div style={{ marginTop: 80, textAlign: 'center' }}>
           <p style={{ fontSize: 48, opacity: 0.15 }}>📇</p>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginTop: 16 }}>아직 저장된 명함이 없습니다</p>
@@ -217,11 +212,11 @@ export default function CardsPage() {
             ))}
             {/* 저장/취소 버튼 */}
             <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
-              <button onClick={handleUpdate} disabled={saving} style={{
+              <button onClick={handleUpdate} disabled={isSaving} style={{
                 flex: 1, padding: '14px 0', borderRadius: 10, border: 'none',
                 background: '#FF8A3D', color: 'white', fontSize: 14, fontWeight: 600,
-                cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.5 : 1,
-              }}>{saving ? '저장 중...' : '저장'}</button>
+                cursor: isSaving ? 'not-allowed' : 'pointer', opacity: isSaving ? 0.5 : 1,
+              }}>{isSaving ? '저장 중...' : '저장'}</button>
               <button onClick={() => setEditing(null)} style={{
                 flex: 1, padding: '14px 0', borderRadius: 10,
                 border: '1px solid rgba(255,255,255,0.1)', background: 'transparent',

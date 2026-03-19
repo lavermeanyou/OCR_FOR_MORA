@@ -19,7 +19,7 @@
 //
 // [사용된 라이브러리/훅]
 // ───────────────────────────────────────────
-// useState()            — query(검색어), results(결과 배열), loading, error, searched, popup 상태 관리
+// useState()            — query(검색어), results(결과 배열), isLoading, error, isSearched, popup 상태 관리
 // searchCards() (api)   — GET /api/search?q= 엔드포인트로 검색 요청
 // BusinessCard (type)   — 명함 데이터 타입
 // encodeURIComponent()  — 검색어를 URL-safe 문자열로 인코딩 (api.ts 내부에서 사용)
@@ -31,28 +31,27 @@ import { useState } from 'react'
 import { searchCards } from '@/lib/api'
 import type { BusinessCard } from '@/types'
 
-// 백엔드 API URL과 이미지 서빙 URL
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+// 이미지 서빙 URL
 const IMAGE_BASE = 'http://localhost:8000'
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')                          // 검색 입력값
   const [results, setResults] = useState<BusinessCard[]>([])      // 검색 결과 배열
-  const [loading, setLoading] = useState(false)                   // 검색 중 여부
+  const [isLoading, setIsLoading] = useState(false)                   // 검색 중 여부
   const [error, setError] = useState<string | null>(null)         // 에러 메시지
-  const [searched, setSearched] = useState(false)                 // 한 번이라도 검색했는지 여부 (빈 결과 표시용)
+  const [isSearched, setIsSearched] = useState(false)                 // 한 번이라도 검색했는지 여부 (빈 결과 표시용)
   const [popup, setPopup] = useState<BusinessCard | null>(null)   // 상세 팝업에 표시할 명함
 
   // 폼 제출 시 검색 수행
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()                // 기본 폼 제출(페이지 새로고침) 방지
     if (!query.trim()) return         // 빈 검색어 무시
-    setLoading(true)
+    setIsLoading(true)
     setError(null)
-    setSearched(true)                 // 검색 시도 플래그 설정
+    setIsSearched(true)                 // 검색 시도 플래그 설정
 
     const res = await searchCards(query.trim())
-    setLoading(false)
+    setIsLoading(false)
     if (res.success) setResults(res.data)
     else setError(res.error)
   }
@@ -77,12 +76,12 @@ export default function SearchPage() {
             fontSize: 15, color: 'white', outline: 'none',
           }}
         />
-        <button type="submit" disabled={loading} style={{
+        <button type="submit" disabled={isLoading} style={{
           padding: '16px 28px', borderRadius: 14, border: 'none',
           background: '#FF8A3D', color: 'white', fontSize: 15, fontWeight: 600,
-          cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1,
+          cursor: isLoading ? 'not-allowed' : 'pointer', opacity: isLoading ? 0.5 : 1,
         }}>
-          {loading ? '...' : '검색'}
+          {isLoading ? '...' : '검색'}
         </button>
       </form>
 
@@ -94,7 +93,7 @@ export default function SearchPage() {
       )}
 
       {/* 검색했으나 결과가 없을 때 빈 상태 표시 */}
-      {searched && !loading && !error && results.length === 0 && (
+      {isSearched && !isLoading && !error && results.length === 0 && (
         <div style={{ marginTop: 60, textAlign: 'center' }}>
           <p style={{ fontSize: 48, opacity: 0.15 }}>🔍</p>
           <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.3)', marginTop: 16 }}>

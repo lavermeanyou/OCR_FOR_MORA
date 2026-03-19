@@ -87,6 +87,41 @@ export async function getMyCards(): Promise<ApiResponse<BusinessCard[]>> {
   }
 }
 
+/** 명함 삭제 */
+export async function deleteCard(cardId: string): Promise<ApiResponse<void>> {
+  try {
+    const res = await fetch(`${API_BASE}/api/cards/${cardId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok || !json?.success) {
+      return { success: false, error: json?.error || '삭제 실패' }
+    }
+    return { success: true, data: json.data }
+  } catch {
+    return { success: false, error: '서버 연결 실패' }
+  }
+}
+
+/** 명함 수정 */
+export async function updateCard(cardId: string, card: BusinessCard): Promise<ApiResponse<BusinessCard>> {
+  try {
+    const res = await fetch(`${API_BASE}/api/cards/${cardId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify(card),
+    })
+    const json = await res.json().catch(() => null)
+    if (!res.ok || !json?.success) {
+      return { success: false, error: json?.error || '수정 실패' }
+    }
+    return { success: true, data: json.data }
+  } catch {
+    return { success: false, error: '서버 연결 실패' }
+  }
+}
+
 /** 키워드로 명함 검색 */
 export async function searchCards(query: string): Promise<ApiResponse<BusinessCard[]>> {
   try {
