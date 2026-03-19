@@ -1,6 +1,5 @@
 # env
 .env
-.claude/
 
 # python
 __pycache__/
