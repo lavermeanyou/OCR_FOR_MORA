@@ -85,7 +85,7 @@ public class CardService {
         // 명함의 주요 필드들을 하나의 문자열로 합쳐 임베딩 입력 텍스트를 만든다
         String textForEmbedding = buildEmbeddingText(
                 request.getName(), request.getCompany(), request.getPosition(),
-                request.getPhone(), request.getEmail(), request.getRawOcardResponseText()
+                request.getPhone(), request.getEmail(), request.getRawOcrText()
         );
 
         // OpenAI API를 통해 임베딩 벡터를 생성한다 (실패 시 null)
@@ -99,7 +99,7 @@ public class CardService {
         card.setPosition(request.getPosition());
         card.setPhone(request.getPhone());
         card.setEmail(request.getEmail());
-        card.setRawOcardResponseText(request.getRawOcardResponseText());
+        card.setRawOcrText(request.getRawOcrText());
         card.setImageUrl(request.getImageUrl());
         card.setEmbedding(embedding);
 
@@ -140,8 +140,8 @@ public class CardService {
         card.setPhone(request.getPhone());
         card.setEmail(request.getEmail());
         // null이 아닌 경우에만 rawOcardResponseText와 imageUrl을 업데이트 (부분 수정 지원)
-        if (request.getRawOcardResponseText() != null) {
-            card.setRawOcardResponseText(request.getRawOcardResponseText());
+        if (request.getRawOcrText() != null) {
+            card.setRawOcrText(request.getRawOcrText());
         }
         if (request.getImageUrl() != null) {
             card.setImageUrl(request.getImageUrl());
@@ -150,7 +150,7 @@ public class CardService {
         // 수정된 필드로 임베딩을 재생성
         String textForEmbedding = buildEmbeddingText(
                 card.getName(), card.getCompany(), card.getPosition(),
-                card.getPhone(), card.getEmail(), card.getRawOcardResponseText()
+                card.getPhone(), card.getEmail(), card.getRawOcrText()
         );
         card.setEmbedding(embeddingService.getEmbedding(textForEmbedding));
 
@@ -201,7 +201,7 @@ public class CardService {
             cardResponse.setPosition((String) row.get("position"));
             cardResponse.setPhone((String) row.get("phone"));
             cardResponse.setEmail((String) row.get("email"));
-            cardResponse.setRawOcardResponseText((String) row.get("raw_ocardResponse_text"));
+            cardResponse.setRawOcrText((String) row.get("raw_ocardResponse_text"));
             cardResponse.setImageUrl((String) row.get("image_url"));
             // cardResponseeated_at → LocalDateTime 변환 (Instant 또는 Timestamp 둘 다 대응)
             Object cardResponseeatedAtObj = row.get("cardResponseeated_at");
